@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+<<<<<<< Updated upstream
 use GuzzleHttp\Psr7\Response as GuzzleResponse;
 use GuzzleHttp\Psr7\Utils;
+=======
+
+>>>>>>> Stashed changes
 use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Psr7\HttpFactory;
+use Nyholm\Psr7\Factory\Psr17Factory;
 
 class HomeController
 {
     public function index(): ResponseInterface
     {
+<<<<<<< Updated upstream
         // de weersomstandigheden ophalen via de api
         $json = file_get_contents(
             "https://weerlive.nl/api/weerlive_api_v2.php?key=a1d5da060b&locatie=sneek"
@@ -108,5 +115,19 @@ class HomeController
         // output
         $stream = Utils::streamFor("<pre>{$output}</pre>");
         return (new GuzzleResponse())->withBody($stream);
+=======
+
+        // $factory = new HttpFactory();
+        $factory = new Psr17Factory();
+        
+        $stream = $factory->createStream("Homepage");
+        
+        $response = $factory->createResponse(200);
+        
+        $response = $response->withBody($stream);
+
+
+        return $response;
+>>>>>>> Stashed changes
     }
 }
