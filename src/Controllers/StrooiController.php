@@ -4,92 +4,125 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Database\Database;
-use GuzzleHttp\Psr7\Response as GuzzleResponse;
-use GuzzleHttp\Psr7\Utils;
+use Framework\Controller\AbstractController;
 use Psr\Http\Message\ResponseInterface;
-use PDO;
 
-class StrooiController
+class StrooiController extends AbstractController
 {
     public function index(): ResponseInterface
     {
         // =========================
-        // 1. Weer ophalen
+        // 1. Locatie en weer ophalen
         // =========================
+        $locatie = $_GET['locatie'] ?? 'sneek';
         $json = file_get_contents(
-            "https://weerlive.nl/api/weerlive_api_v2.php?key=a1d5da060b&locatie=sneek"
+            "https://weerlive.nl/api/weerlive_api_v2.php?key=a1d5da060b&locatie={$locatie}"
         );
 
         $data = json_decode($json, true);
         $weer = $data['liveweer'][0] ?? [];
 
         $plaats = $weer['plaats'] ?? 'Onbekend';
-        $temperatuur = (float) ($weer['temp'] ?? 10);
+        $temperatuur = (float) ($weer['temp'] ?? 0);
         $soortWeer = strtolower($weer['samenv'] ?? 'onbekend');
 
         // =========================
-        // 2. Database
+        // 2. Statische wegenlijst met strooifrequenties per temperatuur
         // =========================
-        $db = Database::connect();
-
-        // Alle wegen ophalen
-        $wegenStmt = $db->query("SELECT * FROM wegen");
-        $wegen = $wegenStmt->fetchAll(PDO::FETCH_ASSOC);
+        // Elke weg heeft: ID, Naam, Locatie, Strooiduur, Frequenties per temp
+        $wegen = [
+            [
+                'ID' => 1,
+                'Naam' => 'Hoofdstraat',
+                'Locatie' => 'Sneek',
+                'Strooiduur' => 30,
+                'Frequenties' => [
+                    -4 => 3,
+                    -1 => 2,
+                    0  => 1,
+                ]
+            ],
+            [
+                'ID' => 2,
+                'Naam' => 'Dorpsweg',
+                'Locatie' => 'Sneek',
+                'Strooiduur' => 20,
+                'Frequenties' => [
+                    -3 => 2,
+                    0  => 1
+                ]
+            ],
+            [
+                'ID' => 3,
+                'Naam' => 'Ringweg',
+                'Locatie' => 'Sneek',
+                'Strooiduur' => 40,
+                'Frequenties' => [
+                    -5 => 4,
+                    -2 => 2,
+                    1  => 1
+                ]
+            ]
+        ];
 
         $totaalMinuten = 0;
-        $output  = "Plaats: {$plaats}\n";
-        $output .= "Temperatuur: {$temperatuur} °C\n\n";
-        $output .= "Berekening per weg:\n";
+        $berekeningen = [];
 
         // =========================
-        // 3. Per weg berekenen
+        // 3. Berekening per weg
         // =========================
         foreach ($wegen as $weg) {
+            // Zoek frequentie die past bij de huidige temperatuur
+            $frequentie = 0;
+            foreach ($weg['Frequenties'] as $temp => $freq) {
+                if ($temperatuur <= $temp) {
+                    $frequentie = $freq;
+                    break;
+                }
+            }
 
-            // Frequentie ophalen voor deze weg en temperatuur
-            $freqStmt = $db->prepare("
-                SELECT frequentie 
-                FROM strooifrequenties
-                WHERE Weg_ID = :weg_id
-                AND Temperatuur >= :temp
-                ORDER BY Temperatuur ASC
-                LIMIT 1
-            ");
-
-            $freqStmt->execute([
-                'weg_id' => $weg['ID'],
-                'temp' => $temperatuur
-            ]);
-
-            $frequentie = $freqStmt->fetchColumn();
-
-            // Geen strooien nodig
-            if ($frequentie === false || 
-               ($frequentie == 0 && !str_contains($soortWeer, 'sneeuw'))) {
-                $output .= "- {$weg['Naam']}: Geen actie\n";
+            if ($frequentie === 0 && !str_contains($soortWeer, 'sneeuw')) {
+                $berekeningen[] = [
+                    'ID' => $weg['ID'],
+                    'Naam' => $weg['Naam'],
+                    'Locatie' => $weg['Locatie'],
+                    'Actie' => 'Geen actie',
+                    'Minuten' => 0,
+                    'Frequentie' => 0
+                ];
                 continue;
             }
 
             $minuten = $frequentie * $weg['Strooiduur'];
             $totaalMinuten += $minuten;
 
-            $output .= "- {$weg['Naam']}: {$frequentie}x strooien ({$minuten} min)\n";
+            $berekeningen[] = [
+                'ID' => $weg['ID'],
+                'Naam' => $weg['Naam'],
+                'Locatie' => $weg['Locatie'],
+                'Actie' => "{$frequentie}x strooien",
+                'Minuten' => $minuten,
+                'Frequentie' => $frequentie
+            ];
         }
 
         // =========================
-        // 4. Strooiwagens
+        // 4. Strooiwagens berekenen
         // =========================
         $minutenPerWagen = 240;
         $strooiwagens = (int) ceil($totaalMinuten / $minutenPerWagen);
 
-        $output .= "\nTotale strooitijd: {$totaalMinuten} minuten\n";
-        $output .= "Benodigde strooiwagens: {$strooiwagens}\n";
-
         // =========================
-        // 5. Output
+        // 5. Render view
         // =========================
-        $stream = Utils::streamFor("<pre>{$output}</pre>");
-        return (new GuzzleResponse())->withBody($stream);
+        return $this->render('strooi/index', [
+            'plaats' => $plaats,
+            'temperatuur' => $temperatuur,
+            'soortWeer' => $soortWeer,
+            'berekeningen' => $berekeningen,
+            'totaalMinuten' => $totaalMinuten,
+            'strooiwagens' => $strooiwagens,
+            'locatie' => $locatie
+        ]);
     }
 }
