@@ -14,6 +14,10 @@ use League\Route\Strategy\ApplicationStrategy;
 use Framework\Template\RendererInterface;
 use Framework\Template\Renderer;
 use Framework\Template\PlatesRenderer;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\ORMSetup;
+use Doctrine\DBAL\DriverManager;
+use Doctrine\ORM\EntityManager;
 
 ini_set("display_errors", 1);
 
@@ -25,7 +29,35 @@ $builder = new DI\ContainerBuilder;
 
 $builder->addDefinitions([
     ResponseFactoryInterface::class => DI\create(HttpFactory::class),
-    RendererInterface::class => DI\create(PlatesRenderer::class)
+    RendererInterface::class => DI\create(PlatesRenderer::class),
+    EntityManagerInterface::class => function () {
+
+        $paths = [dirname(__DIR__) . "/src/Entities"];
+
+        $config = ORMSetup::createAttributeMetadataConfiguration($paths, true);
+
+        $params = [
+            "host" => "localhost",
+            "dbname" => "strooiwagen",
+            "user" => "root",
+            "password" => "ServBay.dev" 
+        ];
+$entityManager = new EntityManager(
+    DriverManager::getConnection($connectionParams, $config),
+    $config
+);
+
+
+$connectionParams = [
+    'driver' => 'pdo_sqlite',
+    'path' => __DIR__ . '/../var/database.sqlite',
+];
+  
+
+        $connection = DriverManager::getConnection($params, $config);
+
+        return new EntityManager($connection, $config);
+    }
 ]);
 
 $builder->useAttributes(true);
@@ -43,6 +75,8 @@ $router->get("/", [HomeController::class, "index"]);
 $router->get("/products", [ProductController::class, "index"]);
 
 $router->get("/product/{id:number}", [ProductController::class, "show"]);
+
+$router->map(["GET", "POST"], "/product/new", [ProductController::class, "create"]);
 
 $response = $router->dispatch($request);
 
