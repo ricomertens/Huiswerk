@@ -5,60 +5,23 @@ declare(strict_types=1);
 use GuzzleHttp\Psr7\ServerRequest;
 use HttpSoft\Emitter\SapiEmitter;
 use League\Route\Router;
-use App\Controllers\HomeController;
-use App\Controllers\ProductController;
-use Nyholm\Psr7\Factory\Psr17Factory;
-use Psr\Http\Message\ResponseFactoryInterface;
-use GuzzleHttp\Psr7\HttpFactory;
 use League\Route\Strategy\ApplicationStrategy;
-use Framework\Template\RendererInterface;
-use Framework\Template\Renderer;
-use Framework\Template\PlatesRenderer;
-use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\ORMSetup;
-use Doctrine\DBAL\DriverManager;
-use Doctrine\ORM\EntityManager;
+use Dotenv\Dotenv;
 
 ini_set("display_errors", 1);
 
-require dirname(__DIR__) . "/vendor/autoload.php";
+define("APP_ROOT", dirname(__DIR__));
+
+require APP_ROOT . "/vendor/autoload.php";
+
+$dotenv = Dotenv::createImmutable(APP_ROOT);
+$dotenv->load();
 
 $request = ServerRequest::fromGlobals();
 
 $builder = new DI\ContainerBuilder;
 
-$builder->addDefinitions([
-    ResponseFactoryInterface::class => DI\create(HttpFactory::class),
-    RendererInterface::class => DI\create(PlatesRenderer::class),
-    EntityManagerInterface::class => function () {
-
-        $paths = [dirname(__DIR__) . "/src/Entities"];
-
-        $config = ORMSetup::createAttributeMetadataConfiguration($paths, true);
-
-        $params = [
-            "host" => "localhost",
-            "dbname" => "strooiwagen",
-            "user" => "root",
-            "password" => "ServBay.dev" 
-        ];
-$entityManager = new EntityManager(
-    DriverManager::getConnection($connectionParams, $config),
-    $config
-);
-
-
-$connectionParams = [
-    'driver' => 'pdo_sqlite',
-    'path' => __DIR__ . '/../var/database.sqlite',
-];
-  
-
-        $connection = DriverManager::getConnection($params, $config);
-
-        return new EntityManager($connection, $config);
-    }
-]);
+$builder->addDefinitions(APP_ROOT . "/config/definitions.php");
 
 $builder->useAttributes(true);
 
@@ -70,13 +33,8 @@ $strategy = new ApplicationStrategy;
 $strategy->setContainer($container);
 $router->setStrategy($strategy);
 
-$router->get("/", [HomeController::class, "index"]);
-
-$router->get("/products", [ProductController::class, "index"]);
-
-$router->get("/product/{id:number}", [ProductController::class, "show"]);
-
-$router->map(["GET", "POST"], "/product/new", [ProductController::class, "create"]);
+$routes = require APP_ROOT . "/config/routes.php";
+$routes($router);
 
 $response = $router->dispatch($request);
 
