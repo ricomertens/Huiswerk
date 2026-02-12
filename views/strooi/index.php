@@ -1,10 +1,6 @@
 <h1>Strooiwagens Berekening</h1>
 
-<form method="get" action="/strooiwagens">
-    <label for="locatie">Plaats:</label>
-    <input type="text" id="locatie" name="locatie" value="<?= htmlspecialchars($locatie) ?>">
-    <button type="submit">Bereken</button>
-</form>
+
 
 <p><strong>Plaats:</strong> <?= htmlspecialchars($plaats) ?></p>
 <p><strong>Temperatuur:</strong> <?= htmlspecialchars($temperatuur) ?> °C</p>
